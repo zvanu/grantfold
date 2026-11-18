@@ -2,6 +2,8 @@
 
 [Website](https://grantfold.xyz) · [Terms](https://grantfold.xyz/terms) · [Privacy](https://grantfold.xyz/privacy) · [Support](https://grantfold.xyz/support)
 
+This is Grantfold's public source repository. The [Grantfold project record on HEY Research Lab](https://heyresearch.xyz/project/grantfold) refers to the same GFLD token on Robinhood Chain (4663): [`0x0e38e046d4b3d091193cce94974b17beba957d9a`](https://robinhoodchain.blockscout.com/token/0x0e38e046d4b3d091193cce94974b17beba957d9a).
+
 Early-access spending controls for agent wallets on Robinhood Chain (chain ID **4663**). Create a spending account, set limits, authorize a separate agent wallet and track USDG purchases with on-chain receipts.
 
 ## What works
