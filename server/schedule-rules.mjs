@@ -1,6 +1,7 @@
 import { AppError } from './store.mjs';
 import { orderTotal } from '../shared/commission.mjs';
 import { scheduleRules } from '../shared/schedule.mjs';
+import { recordScheduleActivity } from './schedule-activity.mjs';
 
 export function scheduledOrderAllowed(state, order, now = Date.now()) {
   if (!order.scheduleId) return true;
@@ -20,6 +21,7 @@ export function stopCardSchedule(state, cardId, reason = 'Agent paused.') {
   delete state.scheduleSetups?.[cardId];
   if (!plan || ['completed', 'expired'].includes(plan.status)) return;
   plan.status = 'paused'; plan.message = reason;
+  recordScheduleActivity(state, cardId, 'paused', plan.id, reason);
   const order = (state.liveOrders || []).find(o => o.id === plan.currentRun?.orderId);
   if (order && !order.submittedAt && ['quoted', 'ready', 'agent_approval'].includes(order.status)) {
     order.status = 'cancelled'; order.message = 'Schedule paused before payment submission. No purchase was made.';

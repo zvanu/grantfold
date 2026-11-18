@@ -24,6 +24,7 @@ export function collectAssets() {
   assets['/commission.mjs'] = { type: mime['.mjs'], base64: readFileSync(path.join(root, 'shared/commission.mjs')).toString('base64') };
   assets['/payment.mjs'] = { type: mime['.mjs'], base64: readFileSync(path.join(root, 'shared/payment.mjs')).toString('base64') };
   assets['/schedule.mjs'] = { type: mime['.mjs'], base64: readFileSync(path.join(root, 'shared/schedule.mjs')).toString('base64') };
+  assets['/schedule-activity.mjs'] = { type: mime['.mjs'], base64: readFileSync(path.join(root, 'shared/schedule-activity.mjs')).toString('base64') };
   return assets;
 }
 

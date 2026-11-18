@@ -102,6 +102,7 @@ export const informationPages = {
       ['Daily purchases', [
         'In Assistant or Connect AI, choose Configure schedule. Enable an agent on this website first, then review the daily UTC hour, maximum total per attempt and 1–7 allowed purchase attempts. Sign the separate schedule with the linked owner wallet. No purchase runs at setup; the first window is in the future.',
         'The server can run daily purchases with the browser closed. Timing varies within the selected hour. Each run rechecks the provider price, GFLD eligibility, available USDG, ETH gas, consent and card rules. A price above your cap skips that window. An unresolved order prevents another purchase; interruptions recover its same reference.',
+        'Schedule activity is saved in your account while the browser is closed. Open Activity to see outcomes, approval requests, skipped windows and saved transaction links. New events appear as in-page alerts while the app is open; there are no push, email or Telegram notifications in this release.',
         'Pause schedule stops future scheduled purchases while leaving manual purchases available under the agent consent. Pause agent also stops its schedule. Submitted payments and their fees may still finish. Unused funds stay in the agent wallet. Expiry, agent renewal or reached run limits require fresh permission; there is no silent extension.'
       ]],
       ['Fund or pause an agent', [

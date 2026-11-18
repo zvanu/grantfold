@@ -176,3 +176,62 @@ test('a failed atomic scheduled-order commit leaves no payment or partial run co
   assert.equal(f.provider.providerTransfers, 0); assert.equal(f.provider.broadcasts, 0);
   await f.cron(plan.utcHour); assert.equal(f.provider.providerTransfers, 1);
 });
+
+test('schedule activity persists one verified receipt across concurrent cron retries and stays account-scoped', async t => {
+  const f = await fixture(t), plan = await f.enable(); f.at(plan.firstRunAt + 1000);
+  await Promise.all([f.cron(plan.utcHour), f.cron(plan.utcHour)]); await f.cron(plan.utcHour);
+  const state = await f.state(), order = state.liveOrders[0], items = state.scheduleActivity;
+  assert.equal(items.filter(item => item.kind === 'completed').length, 1);
+  const receipt = items.find(item => item.kind === 'completed');
+  assert.equal(receipt.orderId, order.id); assert.equal(receipt.cardId, 'card-1');
+  assert.equal(receipt.amountMicros, 15000); assert.equal(receipt.feeMicros, 750); assert.equal(receipt.feeBps, 500);
+  assert.equal(receipt.providerTransaction, order.receipt.transaction); assert.equal(receipt.feeTransaction, order.feeReceipt.transaction);
+  assert.ok(!JSON.stringify(items).includes('signature')); assert.equal(f.provider.providerTransfers, 1);
+  await f.api('/api/account/bootstrap', { legacy: null }, 'bob');
+  assert.deepEqual((await f.api('/api/account', undefined, 'bob')).data.state.scheduleActivity || [], []);
+});
+
+test('skipped windows and agent pause are saved without claiming a payment or repeating an event', async t => {
+  const f = await fixture(t), plan = await f.enable({ maxTotalMicros: 15000 }); f.at(plan.firstRunAt + 1000);
+  await f.cron(plan.utcHour); await f.cron(plan.utcHour);
+  let items = (await f.state()).scheduleActivity;
+  assert.equal(items.filter(item => item.kind === 'skipped').length, 1);
+  assert.match(items.find(item => item.kind === 'skipped').text, /cap/);
+  assert.ok(items.every(item => item.amountMicros === undefined));
+  await f.api('/api/actions', { type: 'assistant', cardId: 'card-1', text: 'Pause agent' });
+  items = (await f.state()).scheduleActivity;
+  assert.equal(items.filter(item => item.kind === 'paused').length, 1);
+  assert.equal(f.provider.providerTransfers, 0); assert.equal(f.provider.feeTransfers, 0);
+});
+
+test('uncertain schedule delivery stays unconfirmed until the same payment is recovered', async t => {
+  const f = await fixture(t), plan = await f.enable(); f.at(plan.firstRunAt + 1000); f.provider.loseProviderResponse = true;
+  await f.cron(plan.utcHour);
+  const before = await f.state(), checking = before.scheduleActivity.find(item => item.kind === 'checking');
+  assert.ok(checking); assert.ok(!before.scheduleActivity.some(item => item.kind === 'completed'));
+  assert.equal(checking.amountMicros, undefined); assert.equal(checking.orderId, before.liveOrders[0].id);
+  await f.cron(plan.utcHour); await f.cron(plan.utcHour);
+  const after = await f.state();
+  assert.equal(after.scheduleActivity.filter(item => item.kind === 'completed').length, 1);
+  assert.equal(after.scheduleActivity.find(item => item.kind === 'completed').orderId, checking.orderId);
+  assert.equal(f.provider.providerTransfers, 1); assert.equal(f.provider.feeTransfers, 1);
+});
+
+test('scheduled approval requests appear in saved activity before any payment', async t => {
+  const f = await fixture(t); await f.api('/api/actions', { type: 'rules', cardId: 'card-1', name: 'Research agent', perBuy: 5000, perDay: 10000, askAbove: 0, categories: ['Market data'] });
+  const plan = await f.enable(); f.at(plan.firstRunAt + 1000); await f.cron(plan.utcHour); await f.cron(plan.utcHour);
+  const state = await f.state(), notices = state.scheduleActivity.filter(item => item.kind === 'approval');
+  assert.equal(notices.length, 1); assert.equal(notices[0].orderId, state.liveOrders[0].id);
+  assert.equal(notices[0].amountMicros, undefined); assert.equal(f.provider.providerTransfers, 0);
+});
+
+test('schedule activity presentation escapes text, filters cards and links only saved valid transaction hashes', async () => {
+  const { scheduleActivityHTML, newScheduleNotifications } = await import('./shared/schedule-activity.mjs');
+  const a = { id: 'a', cardId: 'card-1', kind: 'checking', text: '<img onerror=attack()>', time: 1, orderId: 'live-1', providerTransaction: 'javascript:attack()' };
+  const b = { ...a, id: 'b', cardId: 'card-2', text: 'Other card secret' };
+  const state = { scheduleActivity: [a, b], liveOrders: [{ id: 'live-1', cardId: 'card-1', status: 'needs_review' }] };
+  const html = scheduleActivityHTML(state, 'card-1');
+  assert.ok(html.includes('&lt;img')); assert.ok(!html.includes('<img')); assert.ok(!html.includes('Other card secret'));
+  assert.ok(!html.includes('javascript:')); assert.ok(html.includes('Review same order')); assert.ok(!html.includes('View report &amp; receipt'));
+  assert.deepEqual(newScheduleNotifications([a], [b, a]), [b]); assert.deepEqual(newScheduleNotifications([a, b], [a, b]), []);
+});

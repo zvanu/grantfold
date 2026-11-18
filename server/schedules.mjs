@@ -5,6 +5,7 @@ import { liveHeld } from '../shared/payment.mjs';
 import { orderTotal } from '../shared/commission.mjs';
 import { scheduleRules, scheduleTypedData, nextScheduleWindow } from '../shared/schedule.mjs';
 import { stopCardSchedule } from './schedule-rules.mjs';
+import { recordScheduleActivity } from './schedule-activity.mjs';
 
 const requireValue = (ok, code, text, status = 422) => { if (!ok) throw new AppError(status, code, text); };
 const configured = env => /^[a-zA-Z0-9_-]{32,200}$/.test(env.CRON_SECRET || '');
@@ -63,6 +64,7 @@ export async function enableSchedule(store, env, user, key, hash, body, origin) 
     requireValue(setup.firstRunAt > Date.now() && setup.validUntil <= grant.validUntil, 'schedule_setup_expired', 'This first window or consent changed. Prepare a fresh schedule.');
     current.schedules ??= {}; current.schedules[body.cardId] = { ...setup, signature: body.signature, status: 'active', startedRuns: 0, completedRuns: 0, skippedRuns: 0, nextRunAt: setup.firstRunAt, currentRun: null, message: 'Daily purchases authorized. No purchase has run yet.' };
     delete current.scheduleSetups[body.cardId];
+    recordScheduleActivity(current, body.cardId, 'enabled', setup.id, 'Daily purchases authorized. The first window is in the future.');
     return scheduleEvent(current, body.cardId, 'schedule_enabled');
   });
 }
@@ -82,6 +84,7 @@ async function skipWindow(store, userId, cardId, planId, slotAt, text) {
   return store.mutate(userId, 'schedule-skip-' + planId + '-' + slotAt, String(slotAt), state => {
     const plan = state.schedules?.[cardId];
     if (plan?.id === planId && plan.status === 'active' && plan.nextRunAt === slotAt) {
+      recordScheduleActivity(state, cardId, 'skipped', slotAt, text);
       plan.skippedRuns++; plan.message = text; plan.nextRunAt = nextScheduleWindow(Date.now(), plan.utcHour);
       if (plan.nextRunAt >= plan.validUntil) plan.status = 'expired';
     }
@@ -93,15 +96,23 @@ async function finishRun(store, userId, cardId, planId) {
   if (!plan || plan.id !== planId || !order) return 'idle';
   if (order.status === 'agent_approval') {
     await store.mutate(userId, 'schedule-approval-' + order.id, order.id, current => {
-      const p = current.schedules?.[cardId]; if (p?.id === planId && p.status !== 'paused') { p.status = 'awaiting_approval'; p.message = 'This price exceeds the card approval threshold. Review the same order in Approvals.'; }
+      const p = current.schedules?.[cardId]; if (p?.id === planId && p.status !== 'paused') { p.status = 'awaiting_approval'; p.message = 'This price exceeds the card approval threshold. Review the same order in Approvals.'; recordScheduleActivity(current, cardId, 'approval', order.id, p.message, order); }
       return scheduleEvent(current, cardId, 'schedule_awaiting_approval');
     }); return 'approval';
   }
-  if (!['completed', 'cancelled', 'failed'].includes(order.status)) return 'pending';
+  if (!['completed', 'cancelled', 'failed'].includes(order.status)) {
+    if (['needs_review', 'fee_due', 'fee_checking'].includes(order.status)) await store.mutate(userId, 'schedule-checking-' + order.id, order.id, current => {
+      const saved = current.liveOrders?.find(o => o.id === order.id);
+      if (current.schedules?.[cardId]?.id === planId && ['needs_review', 'fee_due', 'fee_checking'].includes(saved?.status)) recordScheduleActivity(current, cardId, 'checking', order.id, 'Payment or delivery needs checking. Recover this same saved order; do not buy again.', saved);
+      return scheduleEvent(current, cardId, 'schedule_needs_checking');
+    });
+    return 'pending';
+  }
   await store.mutate(userId, 'schedule-finish-' + order.id + '-' + order.status, order.id, current => {
     const p = current.schedules?.[cardId], o = current.liveOrders.find(v => v.id === order.id);
     if (p?.id !== planId || p.currentRun?.orderId !== o.id) return scheduleEvent(current, cardId, 'schedule_status');
     p.currentRun = null; p.lastOrderId = o.id; p.message = o.message;
+    recordScheduleActivity(current, cardId, o.status, o.id, o.status === 'completed' ? 'Scheduled market overview delivered. Provider payment and fee verified.' : 'Scheduled order closed without completion. Review the saved order.', o);
     if (o.status === 'completed') {
       p.completedRuns++; p.nextRunAt = Math.max(o.scheduleSlotAt + scheduleRules.intervalMs, nextScheduleWindow(Date.now(), p.utcHour));
       if (p.startedRuns >= p.maxRuns) p.status = 'completed';
@@ -153,6 +164,7 @@ export async function runSchedule(store, env, userId, cardId, provider, hour) {
     const result = addAgentQuote(current, cardId, quote), created = current.liveOrders.find(o => o.id === result.effect.orderId);
     created.scheduleId = p.id; created.scheduleSlotAt = slotAt;
     p.startedRuns++; p.status = 'running'; p.currentRun = { orderId: created.id, slotAt }; p.message = 'One scheduled order is being checked. Its saved reference is reused after interruptions.';
+    recordScheduleActivity(current, cardId, 'started', created.id, 'Scheduled purchase started. Payment and delivery are not yet confirmed.', created);
     return scheduleEvent(current, cardId, 'schedule_run_started', { orderId: created.id });
   });
   try { await executeAgentOrder(store, env, userId, claimed.effect.orderId, provider); }

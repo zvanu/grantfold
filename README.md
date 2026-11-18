@@ -14,6 +14,7 @@ Early-access spending controls for agent wallets on Robinhood Chain (chain ID **
 - Live **Agent402 crypto market overviews**, paid in USDG. ETH covers network gas.
 - English/Russian Assistant commands for purchases, balances, fee previews and pausing.
 - Daily schedules with separate EIP-712 consent, a total price cap, 1–7 attempts and expiry.
+- Saved schedule activity with approval requests, skipped windows, recovery status, verified payment/fee receipts and in-page alerts.
 - Recovery of the same saved order after an interrupted payment; unused funds can return only to the linked owner with a separate signature.
 
 Card demo balances are simulated. RPC credits, compute and gift-card entries remain demos. External ChatGPT, Claude and Cursor clients are not connected to this Vercel deployment. The Assistant supports explicit commands.
@@ -92,11 +93,13 @@ The build registers 24 distinct once-daily cron definitions, one per UTC hour. O
 
 Each new run verifies the schedule signature, agent consent, card rules, GFLD fee, price cap, USDG and ETH requirements. Above-threshold orders wait for approval. Missed windows are skipped without catch-up purchases. Unresolved orders block another purchase. Deterministic run references and saved authorizations support recovery of the same order.
 
+Schedule activity is saved on the server even with the browser closed. Open Activity for run outcomes, provider and fee amounts, and transaction links. New events appear as in-page alerts while the app is open; this release does not send push, email or Telegram notifications. Only a completed order with verified settlement is labelled delivered. Existing schedules begin collecting events after this release; older events are not reconstructed.
+
 Pause schedule stops future scheduled purchases. Pause agent also stops its schedule. Renewal, expiry and reached limits require fresh permission. Submitted payments and agreed fees can still finish.
 
 ## Validation
 
-**127 automated tests** cover account isolation, login, exact payment amounts and authorization nonces, limits, concurrency, GFLD tiers, schedules, pause races and payment recovery. Tests use isolated databases and simulated providers.
+**132 automated tests** cover account isolation, login, exact payment amounts and authorization nonces, limits, concurrency, GFLD tiers, schedules, pause races and payment recovery. Tests use isolated databases and simulated providers.
 
 An agent purchase from the production Assistant has been verified on chain. Production scheduling checks covered authenticated empty cron execution and signed activation/pause with an unfunded test wallet. A paid scheduled run has **not** yet been tested. Automated checks are not a claim of an independent security audit.
 
