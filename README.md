@@ -8,6 +8,7 @@ Early-access spending controls for agent wallets on Robinhood Chain (chain ID **
 
 ## What works
 
+- Real USDG card balances, same-block token/ETH/reservation reads, funding addresses and signed returns.
 - Wallet login using a one-use EIP-4361 message and an HttpOnly session.
 - Separate agent wallets with encrypted server-held signing keys and owner-signed consent.
 - Purchase/day limits, allowed categories, approval thresholds, freeze and pause controls.
@@ -18,7 +19,7 @@ Early-access spending controls for agent wallets on Robinhood Chain (chain ID **
 - Saved schedule activity with approval requests, skipped windows, recovery status, verified payment/fee receipts and in-page alerts.
 - Recovery of the same saved order after an interrupted payment; unused funds can return only to the linked owner with a separate signature.
 
-Card demo balances are simulated. Gift cards and the seven-day market-data pass remain demos. The Shop’s compute and research entries now buy individual executions/searches, not prepaid allowances or multi-source bundles. RPC tools read the live chain without issuing a credit package. External ChatGPT, Claude and Cursor clients are not connected to this Vercel deployment. The Assistant supports explicit commands.
+Main agent cards display real on-chain USDG balances, pending reservations and verified agent purchase spending. Separate legacy demo shop balances stay simulated. Gift cards and the seven-day market-data pass remain demos. The Shop’s compute and research entries now buy individual executions/searches, not prepaid allowances or multi-source bundles. RPC tools read the live chain without issuing a credit package. External ChatGPT, Claude and Cursor clients are not connected to this Vercel deployment. The Assistant supports explicit commands.
 
 The operator holds the agent signing key in encrypted form and can use it under consent. This is not an owner-only signing wallet. Login, agent consent and schedule consent are separate permissions.
 
@@ -86,6 +87,14 @@ The migration command reads ignored `.env.local` when needed and applies new SQL
 
 The production entry point `api/handler.mjs` forces wallet authentication, checks hosts and strips client-supplied platform identity headers. Worker/MCP compatibility modules remain for regression coverage and are not exposed by the Vercel deployment.
 
+## Real agent cards
+
+The primary card and balance summary display the selected agent wallet’s real USDG balance, reserved funds and agent purchase spending confirmed today (UTC). Values use integer micro-USDG amounts; manual purchases from the owner wallet and demo purchases are excluded. On-chain authorization state avoids double subtraction after a provider/fee transfer settles but delivery remains unconfirmed. Pending USDG returns are reserved until their transfer is observed. The token, ETH and authorization reads use the same block snapshot.
+
+`POST /api/cards/balance` accepts only the authenticated account’s `cardId`. It reads public wallet fields and never creates a wallet, unlocks a key, signs or spends. Missing wallets return `not_setup`; chain failures return an error with no invented balance. The browser discards stale/account-mismatched snapshots, refreshes the selected card, and clears balance views on disconnect/account changes.
+
+**Add funds** shows the real agent address for USDG and ETH on Robinhood Chain. The user sends funds from their wallet; copying the address or refreshing does not transfer money. **Return funds** retains the separate linked-owner signature and existing checks. Demo top-ups remain only inside labelled demo checkout. Public landing balances and phone receipts are labelled illustrations.
+
 ## Live services
 
 In Shop or Assistant, choose **Run code** or **Search web**. Enter the exact task and choose the funded agent wallet or your own wallet. Requesting a quote does not submit a payment. The task is frozen in the saved order and shown again alongside the provider price, GFLD-adjusted fee, total and expiry before confirmation. Recovery reuses that exact task, authorization and order reference.
@@ -112,7 +121,7 @@ Pause schedule stops future scheduled purchases. Pause agent also stops its sche
 
 ## Validation
 
-**146 automated tests** cover account isolation, login, exact payment amounts and authorization nonces, limits, concurrency, GFLD tiers, schedules, pause races and payment recovery. Tests use isolated databases and simulated providers.
+**160 automated tests** cover account isolation, login, exact payment amounts and authorization nonces, limits, concurrency, GFLD tiers, schedules, pause races and payment recovery. Tests use isolated databases and simulated providers.
 
 An agent purchase from the production Assistant has been verified on chain. Production scheduling checks covered authenticated empty cron execution and signed activation/pause with an unfunded test wallet. A paid scheduled run has **not** yet been tested. Automated checks are not a claim of an independent security audit.
 

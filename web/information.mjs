@@ -8,7 +8,7 @@ const contract = `<code style="overflow-wrap:anywhere">${grantfoldToken.address}
 const sections = entries => entries.map(([title, paragraphs]) => `<details open><summary>${title}</summary>${paragraphs.map(p => `<p>${p}</p>`).join('')}</details>`).join('');
 
 export function informationLinks() { return '<a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/support">Support</a>'; }
-export function informationFooter() { return `<footer class="footer"><a href="/#/" class="brand">${mark}</a><p>Robinhood Chain design study.<br>Demo cards and receipts.<br>Live services paid separately in USDG. Chain reads are free.</p><nav aria-label="Information" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><a href="/#/app">Open the demo</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></nav></footer>`; }
+export function informationFooter() { return `<footer class="footer"><a href="/#/" class="brand">${mark}</a><p>Agent wallets on Robinhood Chain.<br>Real USDG balances and receipts.<br>Live services paid separately in USDG. Chain reads are free.</p><nav aria-label="Information" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><a href="/#/app">Open the app</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></nav></footer>`; }
 
 export const informationPages = {
   terms: {
@@ -16,7 +16,7 @@ export const informationPages = {
     entries: [
       ['1. The service and its operator', [
         `Grantfold is an early-access software project. In these terms, “Grantfold”, “we” and “us” refer to the project operator, reachable through ${contact}. These terms govern use of this website and its purchase tools. Read our <a href="/privacy">Privacy notice</a> and <a href="/support">Support guide</a> before funding an agent.`,
-        'Grantfold provides spending controls and an interface to third-party digital services. It is not a bank, payment-card issuer, exchange or investment adviser, and is not operated or endorsed by Robinhood. Demo card balances and demo receipts have no monetary value and cannot be redeemed.'
+        'Grantfold provides spending controls and an interface to third-party digital services. It is not a bank, payment-card issuer, exchange or investment adviser, and is not operated or endorsed by Robinhood. The main agent card displays its real Robinhood Chain USDG wallet balance, less pending reservations. Agent keys are held encrypted by the service as described below. Separately labelled demo shop balances and receipts have no monetary value and cannot be redeemed.'
       ]],
       ['2. Eligibility and wallet access', [
         'You must be at least 18, able to enter an agreement and permitted to use the service where you live. Use only wallets and funds you are authorized to control. You are responsible for checking the website, network, address, amount and message before signing.',
@@ -111,8 +111,13 @@ export const informationPages = {
         'Pause schedule stops future scheduled purchases while leaving manual purchases available under the agent consent. Pause agent also stops its schedule. Submitted payments and their fees may still finish. Unused funds stay in the agent wallet. Expiry, agent renewal or reached run limits require fresh permission; there is no silent extension.'
       ]],
       ['Fund or pause an agent', [
-        `Open <a href="/#/app?tab=connect">Connect AI</a> for the selected card. Use the exact displayed agent deposit address. Send USDG for provider prices and fees, and ETH for gas, on Robinhood Chain only (chain ID 4663). Add funds on a demo card adds simulated balance and does not fund this wallet.`,
+        `Open <a href="/#/app?tab=connect">Connect AI</a> for the selected card. Use the exact displayed agent deposit address. Send USDG for provider prices and fees, and ETH for gas, on Robinhood Chain only (chain ID 4663). Add funds on the main card displays its real agent deposit address. It does not create or credit tokens. Send USDG and ETH from your wallet on Robinhood Chain and use Refresh balance after confirmation. Add demo funds appears only in labelled demo checkout and cannot fund the real wallet.`,
         'Use Pause agent to stop new autonomous purchases; Freeze also blocks new card purchases. Previously submitted orders and fees can still settle. Sign-in and agent spending consent are separate. Consent expires after up to seven days; only renew it after reviewing its wallet and limits.'
+      ]],
+      ['Real card balances', [
+        'Select a card to read its agent wallet balance from Robinhood Chain. Available, Reserved and Spent today are USDG amounts for that agent wallet. Manual purchases paid from your personal wallet and demo purchases do not enter these figures. Confirmed provider prices and fees are counted as they are verified; direct wallet transfers and returns are not purchase spending.',
+        'Available subtracts pending unspent purchase authorizations and USDG returns from the on-chain balance. An authorization already used on chain is not deducted twice while delivery is being recovered. All token, ETH and authorization reads use one block snapshot. Values refresh while the app is open and can change after the displayed check time. If a balance cannot be verified, the site shows an unavailable state rather than zero or a demo amount.',
+        'Without a wallet, the card shows Wallet not set up. Use Add funds to set up and authorize a wallet, then copy its deposit address. Wallet setup creates no real funds and makes no payment. Paused and frozen wallets remain readable; returning unused funds still requires the linked owner’s separate signature.'
       ]],
       ['Return unused funds', [
         'In Connect AI, choose Return funds. Connect the original linked owner wallet and review the separate return signature. Returns can go only to that owner. Keep enough agent ETH to pay gas, and resolve submitted orders first. Returning USDG and ETH are separate actions. Do not assume disconnecting the website transfers funds back.'

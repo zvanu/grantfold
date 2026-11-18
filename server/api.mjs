@@ -1,4 +1,5 @@
 import { readChainTool } from './rpc-tools.mjs';
+import { readAgentCardBalance } from './card-balance.mjs';
 import { productRequest } from './products.mjs';
 import { AccountStore, AppError } from './store.mjs';
 import { importLegacyState, applyAction } from './domain.mjs';
@@ -11,7 +12,7 @@ import { isLiveMarketRequest, prepareAssistantPurchase, assistantControlIntent, 
 import { walletSessionUser, loginChallenge, verifyLogin, logout } from './auth.mjs';
 import { publicScheduling, authorizedCron, runDueSchedules, prepareSchedule, enableSchedule, pauseSchedule } from './schedules.mjs';
 
-const accountCapabilities = Object.freeze({ mode: 'pilot', sandboxBalances: true, chainId: 4663, paymentAsset: 'USDG', paymentsEnabled: true, providerEnabled: true, liveMarket: { enabled: true, settlement: 'customer_wallet', automaticAgentPayments: true } });
+const accountCapabilities = Object.freeze({ mode: 'pilot', sandboxBalances: true, cardBalances: 'onchain', chainId: 4663, paymentAsset: 'USDG', paymentsEnabled: true, providerEnabled: true, liveMarket: { enabled: true, settlement: 'customer_wallet', automaticAgentPayments: true } });
 
 export function apiJson(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'vary': 'Cookie, OAI-Authenticated-User-Id', ...extra } });
@@ -78,6 +79,11 @@ export async function handleApi(request, env, services = {}) {
     if (!['GET', 'POST'].includes(request.method)) return apiJson({ error: { code: 'method_refused', message: 'Use GET or POST for this endpoint.' } }, 405, { Allow: 'GET, POST' });
     if (request.method === 'POST') validateWriteOrigin(request);
     const store = new AccountStore(env.DB);
+    if (path === '/api/cards/balance' && request.method === 'POST') {
+      const body = await requestBody(request); liveFields(body, ['cardId']);
+      try { return apiJson(await readAgentCardBalance(store, user.id, body.cardId, services.marketProvider || new MarketProvider())); }
+      catch (error) { if (error instanceof AppError && error.status < 500) throw error; throw new AppError(503, 'card_balance_unavailable', 'The live agent balance could not be verified. No demo amount is substituted.'); }
+    }
     if (path === '/api/tools/rpc' && request.method === 'POST') return apiJson(await readChainTool(store, user.id, await requestBody(request), services.marketProvider || new MarketProvider()));
     if (['/api/schedule/prepare', '/api/schedule/enable', '/api/schedule/pause'].includes(path) && request.method === 'POST') {
       const key = request.headers.get('idempotency-key');
