@@ -3,6 +3,8 @@ import { AppError } from './store.mjs';
 import { commission, feeFor, orderTotal } from '../shared/commission.mjs';
 import { feeAuthorization, feeGasQuote } from './commission.mjs';
 import { liveMarket, liveHeld, liveTotals, paymentTypedData } from '../shared/payment.mjs';
+import { productOf } from '../shared/products.mjs';
+import { productRequest, normalizeToolReport } from './products.mjs';
 import { scheduledOrderAllowed, assertScheduledOrder } from './schedule-rules.mjs';
 
 const addressPattern = /^0x[0-9a-fA-F]{40}$/, signaturePattern = /^0x[0-9a-fA-F]{130}$/;
@@ -10,11 +12,12 @@ const sameAddress = (a, b) => typeof a === 'string' && typeof b === 'string' && 
 function liveAssert(value, code, message, status = 422) { if (!value) throw new AppError(status, code, message); }
 export function liveFields(body, fields, optional = []) { liveAssert(body && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).every(k => [...fields, ...optional].includes(k)) && fields.every(k => typeof body[k] === 'string' && body[k].length > 0 && body[k].length <= 500), 'invalid_request', 'This live order request contains missing or unsupported fields.'); }
 function findLiveOrder(state, id) { const order = state.liveOrders?.find(o => o.id === id); liveAssert(order, 'live_order_missing', 'This live order was not found in your account.', 404); return order; }
-function liveBudget(state, cardId, amountMicros, excludeId, now) {
+function liveBudget(state, cardId, amountMicros, excludeId, now, productId) {
   const card = state.cards.find(c => c.id === cardId);
   liveAssert(card, 'card_missing', 'This card was not found in your account.', 404);
   liveAssert(!card.frozen, 'live_card_frozen', 'Unfreeze this card before paying for a live report.');
-  liveAssert(card.categories.includes(liveMarket.category), 'live_category_refused', 'Market data is not allowed on this card.');
+  const product = productOf({ productId });
+  liveAssert(product && card.categories.includes(product.category), 'live_category_refused', 'This service category is not allowed on this card.');
   liveAssert(amountMicros <= card.perBuy * 10_000, 'live_purchase_limit', 'The live price exceeds this card’s per-purchase limit.');
   const scoped = { ...state, liveOrders: (state.liveOrders || []).filter(o => o.id !== excludeId) }, totals = liveTotals(scoped, cardId, now);
   liveAssert(totals.spent + totals.held + amountMicros <= card.perDay * 10_000, 'live_daily_limit', 'The live price exceeds the daily limit, including live orders still being checked.');
@@ -27,9 +30,9 @@ export function addLiveQuote(state, cardId, quote, now = Date.now()) {
   state.liveOrders ??= [];
   liveAssert(state.liveOrders.length < 100, 'live_order_capacity', 'This pilot account has reached its 100 live-order limit.');
   liveAssert(!state.liveOrders.some(o => o.cardId === cardId && (['processing', 'checking', 'needs_review', 'fee_due', 'fee_checking'].includes(o.status) || (o.status === 'agent_approval' && o.expiresAt > now))), 'live_order_unresolved', 'Check the previous live payment on this card before requesting another purchase.', 409);
-  liveBudget(state, cardId, orderTotal(quote), null, now);
+  liveBudget(state, cardId, orderTotal(quote), null, now, quote.productId);
   liveAssert(state.liveOrders.filter(o => liveHeld(o, now)).length < 10, 'live_order_busy', 'Finish or cancel an existing live quote first.');
-  const order = { id: 'live-' + crypto.randomUUID(), cardId, name: liveMarket.name, provider: liveMarket.provider, status: 'quoted', createdAt: now, expiresAt: now + Math.min(quote.accepted.maxTimeoutSeconds, 300) * 1000, ...quote };
+  const order = { id: 'live-' + crypto.randomUUID(), cardId, name: productOf(quote).name, provider: liveMarket.provider, status: 'quoted', createdAt: now, expiresAt: now + Math.min(quote.accepted.maxTimeoutSeconds, 300) * 1000, ...quote };
   state.liveOrders.unshift(order);
   return liveMutation(state, order, 'live_quote');
 }
@@ -42,7 +45,7 @@ export function prepareLiveOrder(state, orderId, wallet, now = Date.now(), prici
     liveAssert(pricing.feePolicy?.holder === wallet.toLowerCase() && pricing.feeMicros === feeFor(order.amountMicros, pricing.feeBps) && pricing.totalMicros === order.amountMicros + pricing.feeMicros && pricing.feeRecipient === commission.recipient, 'fee_quote_invalid', 'This fee does not match the connected wallet.');
     Object.assign(order, pricing);
   }
-  liveBudget(state, order.cardId, orderTotal(order), order.id, now);
+  liveBudget(state, order.cardId, orderTotal(order), order.id, now, order.productId);
   if (order.authorization) liveAssert(sameAddress(order.authorization.from, wallet), 'live_wallet_changed', 'This quote belongs to another wallet. Cancel it and request a new quote.', 409);
   else {
     const bytes = crypto.getRandomValues(new Uint8Array(32)), nonce = '0x' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
@@ -97,29 +100,31 @@ function normalizeReport(data) {
 }
 export class MarketProvider {
   constructor(fetcher = fetch) { this.fetcher = fetcher; }
-  async quote() {
+  async quote(productId = 'market', input = {}) {
+    const request = productRequest(productId, input);
     try {
-      const response = await this.fetcher(liveMarket.url, { redirect: 'error', signal: AbortSignal.timeout(12_000), headers: { Accept: 'application/json' } });
+      const response = await this.fetcher(request.url, { method: request.product.method, redirect: 'error', signal: AbortSignal.timeout(12_000), headers: { Accept: 'application/json', ...(request.body ? { 'Content-Type': 'application/json' } : {}) }, ...(request.body ? { body: request.body } : {}) });
       liveAssert(response.status === 402, 'live_quote_unavailable', 'The provider is not offering a paid quote right now.', 503);
       const raw = response.headers.get('payment-required'); liveAssert(raw && raw.length < 60_000, 'live_quote_invalid', 'The provider payment quote is missing.', 503);
       const challenge = JSON.parse(atob(raw)); await response.body?.cancel();
-      liveAssert(challenge.x402Version === 2 && challenge.resource?.url === liveMarket.url && Array.isArray(challenge.accepts), 'live_quote_invalid', 'The provider quote does not match this product.', 503);
+      liveAssert(challenge.x402Version === 2 && challenge.resource?.url === new URL(request.product.path, 'https://agent402.tools').href && Array.isArray(challenge.accepts), 'live_quote_invalid', 'The provider quote does not match this product.', 503);
       const accepted = challenge.accepts.find(a => a.scheme === 'exact' && a.network === liveMarket.network && sameAddress(a.asset, liveMarket.asset) && a.extra?.name === 'Global Dollar' && a.extra?.version === '1' && !a.extra?.assetTransferMethod);
       liveAssert(accepted && sameAddress(accepted.payTo, liveMarket.payTo) && typeof accepted.amount === 'string' && /^\d{1,7}$/.test(accepted.amount) && Number(accepted.amount) > 0 && Number(accepted.amount) <= liveMarket.maxAmountMicros && Number.isSafeInteger(accepted.maxTimeoutSeconds) && accepted.maxTimeoutSeconds >= 60 && accepted.maxTimeoutSeconds <= 600, 'live_rail_unavailable', 'A supported USDG quote on Robinhood Chain is not available. No payment was requested.', 503);
       const amountMicros = Number(accepted.amount), feeMicros = feeFor(amountMicros);
       const declaration = challenge.extensions?.['payment-identifier'];
       if (declaration !== undefined) liveAssert(declaration && typeof declaration === 'object' && !Array.isArray(declaration) && declaration.info && typeof declaration.info === 'object' && typeof declaration.info.required === 'boolean' && declaration.schema && typeof declaration.schema === 'object' && !Array.isArray(declaration.schema) && JSON.stringify(declaration).length <= 10_000, 'live_extension_invalid', 'The provider payment identifier declaration is unsupported. No payment was requested.', 503);
-      return { amountMicros, feeMicros, totalMicros: amountMicros + feeMicros, feeBps: commission.bps, feeRecipient: commission.recipient, accepted: structuredClone(accepted), resource: structuredClone(challenge.resource), ...(declaration ? { paymentExtensions: { 'payment-identifier': structuredClone(declaration) } } : {}) };
+      return { ...(productId === 'market' ? {} : { productId, input: request.input }), amountMicros, feeMicros, totalMicros: amountMicros + feeMicros, feeBps: commission.bps, feeRecipient: commission.recipient, accepted: structuredClone(accepted), resource: structuredClone(challenge.resource), ...(declaration ? { paymentExtensions: { 'payment-identifier': structuredClone(declaration) } } : {}) };
     } catch (error) { if (error instanceof AppError) throw error; throw new AppError(503, 'live_quote_unavailable', 'The provider quote could not be loaded. No payment was requested.'); }
   }
   async purchase(order, payload) {
     const { x402Version, resource, accepted, payload: signed, extensions } = payload;
     const payment = btoa(Array.from(new TextEncoder().encode(JSON.stringify({ x402Version, resource, accepted, payload: signed, extensions })), byte => String.fromCharCode(byte)).join(''));
-    const response = await this.fetcher(liveMarket.url, { redirect: 'error', signal: AbortSignal.timeout(20_000), headers: { Accept: 'application/json', 'PAYMENT-SIGNATURE': payment, 'Idempotency-Key': order.id } });
+    const request = productRequest(order.productId || 'market', order.input || {});
+    const response = await this.fetcher(request.url, { method: request.product.method, redirect: 'error', signal: AbortSignal.timeout(order.productId === 'compute' ? 45_000 : 20_000), headers: { Accept: 'application/json', 'PAYMENT-SIGNATURE': payment, 'Idempotency-Key': order.id, ...(request.body ? { 'Content-Type': 'application/json' } : {}) }, ...(request.body ? { body: request.body } : {}) });
     if (response.status !== 200) throw await providerRefusal(response);
     const data = await boundedJson(response), settlement = decodePaymentHeader(response.headers.get('payment-response'));
     liveAssert(settlement.success === true && settlement.network === liveMarket.network && (settlement.payer === undefined || sameAddress(settlement.payer, order.authorization.from)) && /^0x[0-9a-fA-F]{64}$/.test(settlement.transaction), 'live_receipt_invalid', 'The provider receipt needs reconciliation on Robinhood Chain.', 502);
-    return { report: normalizeReport(data), settlement };
+    return { report: !order.productId || order.productId === 'market' ? normalizeReport(data) : normalizeToolReport(order.productId, data), settlement };
   }
   async rpc(method, params) {
     const response = await this.fetcher(liveMarket.rpc, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10_000), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
@@ -197,10 +202,10 @@ export async function submitLivePayment(store, userId, orderId, signature, provi
           const totals = liveTotals({ ...state, liveOrders: state.liveOrders.filter(o => o.id !== current.id) }, current.cardId, now);
           liveAssert(totals.spent + totals.held + orderTotal(current) <= grant.perDayMicros, 'agent_daily_limit', 'The purchase exceeds the signed daily agent limit.');
         }
-        liveBudget(state, current.cardId, orderTotal(current), current.id, now);
+        liveBudget(state, current.cardId, orderTotal(current), current.id, now, current.productId);
         liveAssert(Number(current.authorization.validBefore) * 1000 > now + 3000, 'live_payment_expired', 'This authorization expired. Its status must be checked before starting another payment.', 409);
       }
-      current.status = 'processing'; current.attemptId = attempt; current.leaseUntil = now + 30_000; current.submittedAt ??= now; current.message = 'Payment submitted. Waiting for the provider.';
+      current.status = 'processing'; current.attemptId = attempt; current.leaseUntil = now + (current.productId === 'compute' ? 55_000 : 30_000); current.submittedAt ??= now; current.message = 'Payment submitted. Waiting for the provider.';
       const result = liveMutation(state, current, 'live_submitted', { dispatch: true });
       if (!existing) result.privateJob = { orderId, payload: { ...makePaymentPayload(current, signature), ...(current.feeMicros ? { _feeSignature: feeSignature } : {}) } };
       return result;
@@ -225,7 +230,7 @@ export async function submitLivePayment(store, userId, orderId, signature, provi
         return liveMutation(state, current, 'live_provider_confirmed');
       });
     }
-    return store.mutate(userId, 'live-complete-' + orderId, orderId, state => { const current = findLiveOrder(state, orderId); current.status = 'completed'; current.completedAt = Date.now(); current.report = capture.report; current.receipt = verified; current.message = 'Paid in USDG on Robinhood Chain. Market overview delivered.'; return liveMutation(state, current, 'live_completed'); });
+    return store.mutate(userId, 'live-complete-' + orderId, orderId, state => { const current = findLiveOrder(state, orderId); current.status = 'completed'; current.completedAt = Date.now(); current.report = capture.report; current.receipt = verified; current.message = 'Paid in USDG on Robinhood Chain. Service result delivered.'; return liveMutation(state, current, 'live_completed'); });
   } catch {
     return store.mutate(userId, 'live-check-' + crypto.randomUUID(), attempt, state => { const current = findLiveOrder(state, orderId); if (current.status !== 'completed') { current.status = 'checking'; current.message = 'Report received. On-chain payment confirmation is still being checked. Use Check payment to continue.'; } return liveMutation(state, current, 'live_confirmation_pending'); });
   }

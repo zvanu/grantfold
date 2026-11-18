@@ -1,3 +1,5 @@
+import { productOf } from '../shared/products.mjs';
+import { productRequest } from './products.mjs';
 import { recoverTypedDataAddress, encodeFunctionData, parseUnits } from 'viem';
 import { AppError } from './store.mjs';
 import { commissionQuote } from './discounts.mjs';
@@ -11,11 +13,12 @@ import { assertScheduledOrder, stopCardSchedule } from './schedule-rules.mjs';
 const address = /^0x[0-9a-f]{40}$/i;
 function demand(ok, code, message, status = 422) { if (!ok) throw new AppError(status, code, message); }
 function cardOf(state, id) { const card = state.cards.find(c => c.id === id); demand(card, 'card_missing', 'This card does not belong to your account.', 404); return card; }
-function grantOf(state, cardId, amount = 0, excludeId) {
+function grantOf(state, cardId, amount = 0, excludeId, productId = 'market') {
   const card = cardOf(state, cardId), grant = state.agents?.[cardId];
   demand(grant?.enabled && grant.validUntil > Date.now(), 'agent_disabled', 'Enable a current spending consent for this agent wallet.', 403);
   demand(!card.frozen, 'agent_frozen', 'This card is frozen.');
-  demand(card.categories.includes(liveMarket.category), 'agent_category_refused', 'Market data is not allowed on this card.');
+  const product = productOf({ productId });
+  demand(product && card.categories.includes(product.category), 'agent_category_refused', 'This service category is not allowed on this card.');
   demand(grant.feeBps === commission.bps && grant.feeRecipient === commission.recipient, 'agent_consent_changed', 'Review the current fee and renew this wallet’s consent.', 403);
   demand(amount <= Math.min(grant.perBuyMicros, card.perBuy * 10000), 'agent_purchase_limit', 'The total including the fee exceeds the approved per-purchase limit.');
   const scoped = { ...state, liveOrders: (state.liveOrders || []).filter(o => o.id !== excludeId) }, totals = liveTotals(scoped, cardId);
@@ -105,7 +108,7 @@ export async function executeAgentOrder(store, env, userId, orderId, provider) {
     if (['fee_due', 'fee_checking'].includes(order.status)) return settleAgentFee(store, env, userId, orderId, provider, vault);
     if (!order.submittedAt) {
       assertScheduledOrder(snapshot.state, order);
-      const grant = grantOf(snapshot.state, order.cardId, orderTotal(order), order.id);
+      const grant = grantOf(snapshot.state, order.cardId, orderTotal(order), order.id, order.productId);
       let consentSigner; try { consentSigner = await recoverTypedDataAddress({ ...consentTypedData(grant, grant.site), signature: grant.consentSignature }); } catch {}
       demand(consentSigner?.toLowerCase() === grant.owner.toLowerCase() && grant.nonce === order.agentGrantNonce, 'agent_consent_invalid', 'The agent consent could not be verified. Renew it before a new purchase.', 403);
       const card = cardOf(snapshot.state, order.cardId);
@@ -129,13 +132,14 @@ export async function executeAgentOrder(store, env, userId, orderId, provider) {
     return snapshot;
   });
 }
-export async function quoteForAgent(store, env, userId, cardId, provider) {
-  const grant = grantOf((await store.get(userId)).state, cardId);
-  const quote = await provider.quote();
+export async function quoteForAgent(store, env, userId, cardId, provider, productId = 'market', input = {}) {
+  productRequest(productId, input);
+  const grant = grantOf((await store.get(userId)).state, cardId, 0, undefined, productId);
+  const quote = await provider.quote(productId, input);
   return { ...quote, ...await commissionQuote(quote.amountMicros, grant.owner, provider, env.GRANTFOLD_FEE_POLICY) };
 }
 export function addAgentQuote(state, cardId, quote) {
-  const grant = grantOf(state, cardId, orderTotal(quote));
+  const grant = grantOf(state, cardId, orderTotal(quote), undefined, quote.productId);
   const result = addLiveQuote(state, cardId, quote), order = state.liveOrders[0];
   order.agent = true; order.agentGrantNonce = grant.nonce;
   if (orderTotal(order) > cardOf(state, cardId).askAbove * 10000) { order.status = 'agent_approval'; order.message = 'Approve this agent purchase including the service fee in Grantfold.'; }
@@ -157,7 +161,7 @@ export async function buyAsAgent(store, env, userId, cardId, requestId, maxTotal
 export async function approveAgentOrder(store, env, userId, orderId, provider) {
   await store.mutate(userId, 'agent-approved-' + orderId, orderId, state => {
     const order = state.liveOrders?.find(o => o.id === orderId); demand(order?.agent, 'agent_order_missing', 'This agent order was not found.', 404);
-    grantOf(state, order.cardId, orderTotal(order), orderId);
+    grantOf(state, order.cardId, orderTotal(order), orderId, order.productId);
     demand(order.status === 'agent_approval' && order.expiresAt > Date.now() + 15000, 'agent_approval_expired', 'This approval expired. Request a fresh purchase.');
     order.status = 'quoted'; order.agentApprovedAt = Date.now(); return event(state, { orderId }, 'agent_purchase_approved', order.cardId);
   });

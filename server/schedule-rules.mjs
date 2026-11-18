@@ -6,7 +6,7 @@ import { recordScheduleActivity } from './schedule-activity.mjs';
 export function scheduledOrderAllowed(state, order, now = Date.now()) {
   if (!order.scheduleId) return true;
   const plan = state.schedules?.[order.cardId];
-  return !!(plan && plan.id === order.scheduleId && ['running', 'awaiting_approval'].includes(plan.status)
+  return !!(plan && (!order.productId || order.productId === 'market') && plan.product === scheduleRules.product && plan.id === order.scheduleId && ['running', 'awaiting_approval'].includes(plan.status)
     && plan.currentRun?.orderId === order.id && plan.currentRun.slotAt === order.scheduleSlotAt
     && order.scheduleSlotAt >= plan.firstRunAt && (order.scheduleSlotAt - plan.firstRunAt) % scheduleRules.intervalMs === 0
     && plan.agentGrantNonce === order.agentGrantNonce && plan.validUntil > now

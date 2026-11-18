@@ -1,7 +1,9 @@
+import { readChainTool } from './rpc-tools.mjs';
+import { productRequest } from './products.mjs';
 import { AccountStore, AppError } from './store.mjs';
 import { importLegacyState, applyAction } from './domain.mjs';
 import { MarketProvider, liveFields, addLiveQuote, prepareLiveOrder, cancelLiveOrder, submitLivePayment } from './market.mjs';
-import { prepareAgent, enableAgent, revokeAgent, agentStatus, approveAgentOrder, executeAgentOrder, prepareWithdrawal, executeWithdrawal, checkWithdrawal, cancelWithdrawal } from './agents.mjs';
+import { prepareAgent, enableAgent, revokeAgent, agentStatus, quoteForAgent, addAgentQuote, approveAgentOrder, executeAgentOrder, prepareWithdrawal, executeWithdrawal, checkWithdrawal, cancelWithdrawal } from './agents.mjs';
 import { checkCommission, prepareCommissionTransaction, declineCommissionTransaction, rememberCommissionTransaction } from './commission.mjs';
 import { commissionQuote, publicFeePolicy, liveReadiness } from './discounts.mjs';
 import { commission } from '../shared/commission.mjs';
@@ -76,6 +78,7 @@ export async function handleApi(request, env, services = {}) {
     if (!['GET', 'POST'].includes(request.method)) return apiJson({ error: { code: 'method_refused', message: 'Use GET or POST for this endpoint.' } }, 405, { Allow: 'GET, POST' });
     if (request.method === 'POST') validateWriteOrigin(request);
     const store = new AccountStore(env.DB);
+    if (path === '/api/tools/rpc' && request.method === 'POST') return apiJson(await readChainTool(store, user.id, await requestBody(request), services.marketProvider || new MarketProvider()));
     if (['/api/schedule/prepare', '/api/schedule/enable', '/api/schedule/pause'].includes(path) && request.method === 'POST') {
       const key = request.headers.get('idempotency-key');
       if (!key || !/^[a-zA-Z0-9_-]{16,100}$/.test(key)) throw new AppError(400, 'request_key_required', 'Provide a unique request key for this action.');
@@ -86,6 +89,21 @@ export async function handleApi(request, env, services = {}) {
       return apiJson({ ...result, user, ...accountCapabilities });
     }
     if (path === '/api/live/status' && request.method === 'GET') return apiJson(await liveReadiness(services.marketProvider || new MarketProvider(), env));
+    if (path === '/api/services/quote' && request.method === 'POST') {
+      const key = request.headers.get('idempotency-key');
+      if (!key || !/^[a-zA-Z0-9_-]{16,100}$/.test(key)) throw new AppError(400, 'request_key_required', 'Provide a unique request key.');
+      const body = await requestBody(request);
+      if (Object.keys(body).some(k => !['cardId', 'productId', 'input', 'agent'].includes(k)) || typeof body.cardId !== 'string' || !['compute', 'research'].includes(body.productId) || typeof body.agent !== 'boolean') throw new AppError(422, 'product_invalid', 'Choose a supported service, inputs and paying wallet.');
+      productRequest(body.productId, body.input);
+      const hash = await requestDigest({ path, body }), prior = await store.receipt(user.id, key, hash);
+      if (prior) return apiJson({ ...await store.get(user.id), effect: prior, replayed: true, user, ...accountCapabilities });
+      const state = (await store.get(user.id)).state, card = state.cards.find(c => c.id === body.cardId);
+      if (!card) throw new AppError(404, 'card_missing', 'This card was not found in your account.');
+      const provider = services.marketProvider || new MarketProvider();
+      const quote = body.agent ? await quoteForAgent(store, env, user.id, body.cardId, provider, body.productId, body.input) : await provider.quote(body.productId, body.input);
+      const result = await store.mutate(user.id, key, hash, current => body.agent ? addAgentQuote(current, body.cardId, quote) : addLiveQuote(current, body.cardId, quote));
+      return apiJson({ ...result, user, ...accountCapabilities });
+    }
     if (path.startsWith('/api/agent/') && request.method === 'POST') {
       const body = await requestBody(request), provider = services.marketProvider || new MarketProvider(), origin = new URL(request.url).origin;
       let result;

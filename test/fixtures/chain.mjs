@@ -28,8 +28,11 @@ export class MockChainProvider extends MarketProvider {
     this.receipts.set(hash, receipt); return receipt;
   }
   async fetchMock(url, init) {
-    if (url === liveMarket.url) {
-      const challenge = { x402Version: 2, resource: { url: liveMarket.url }, accepts: [{ scheme: 'exact', network: liveMarket.network, amount: '15000', asset: liveMarket.asset, payTo: liveMarket.payTo, maxTimeoutSeconds: 300, extra: { name: 'Global Dollar', version: '1' } }], extensions: { 'payment-identifier': identifierDeclaration } };
+    const toolUrl = new URL(url);
+    const service = toolUrl.pathname === '/api/code-run' ? 'compute' : toolUrl.pathname === '/api/search' ? 'research' : null;
+    if (url === liveMarket.url || (toolUrl.origin === 'https://agent402.tools' && service)) {
+      const amount = service === 'compute' ? '20000' : service === 'research' ? '10000' : '15000';
+      const challenge = { x402Version: 2, resource: { url: toolUrl.origin + toolUrl.pathname }, accepts: [{ scheme: 'exact', network: liveMarket.network, amount, asset: liveMarket.asset, payTo: liveMarket.payTo, maxTimeoutSeconds: 300, extra: { name: 'Global Dollar', version: '1' } }], extensions: { 'payment-identifier': identifierDeclaration } };
       if (!init.headers['PAYMENT-SIGNATURE']) return new Response('{}', { status: 402, headers: { 'payment-required': btoa(JSON.stringify(challenge)) } });
       this.providerCalls++;
       if (this.failProvider) throw Error('Mock provider unavailable');
@@ -38,14 +41,21 @@ export class MockChainProvider extends MarketProvider {
       if (!extensionCheck.valid) return new Response(JSON.stringify({ reason: 'unclassified' }), { status: 402, headers: { 'content-type': 'application/json', 'payment-required': btoa(JSON.stringify({ ...challenge, error: extensionCheck.invalidReason })) } });
       if (wire._feeSignature) throw Error('Fee signature leaked to external provider');
       const a = wire.payload.authorization, key = init.headers['Idempotency-Key'];
+      this.serviceRequests ??= new Map();
+      const fingerprint = JSON.stringify([init.method || 'GET', url, init.body || null]);
+      if (this.serviceRequests.has(key) && this.serviceRequests.get(key) !== fingerprint) throw Error('Task changed under a saved payment');
+      this.serviceRequests.set(key, fingerprint);
       let capture = this.paid.get(key);
       if (!capture) {
         const signer = await recoverTypedDataAddress({ ...paymentTypedData(a), signature: wire.payload.signature });
-        if (signer.toLowerCase() !== a.from.toLowerCase() || a.to.toLowerCase() !== liveMarket.payTo.toLowerCase() || a.value !== '15000') throw Error('Mock invalid payment');
+        if (signer.toLowerCase() !== a.from.toLowerCase() || a.to.toLowerCase() !== liveMarket.payTo.toLowerCase() || a.value !== amount) throw Error('Mock invalid payment');
         if (this.authorizations.has(a.nonce)) throw Error('Mock reused provider authorization');
         this.transferTokens(a.from, a.to, BigInt(a.value)); this.authorizations.add(a.nonce); this.providerTransfers++;
         const transaction = keccak256(toHex(key)); this.receipt(transaction, this.logs(a), a.from);
-        capture = { report: { currency: 'usd', count: 2, coins: [{ name: 'Bitcoin', symbol: 'btc', price: 65000, change24hPct: 1.5, marketCap: 1e12 }, { name: 'Ethereum', symbol: 'eth', price: 3500, change24hPct: -0.5, marketCap: 4e11 }], credit: 'Local fixture data, no network payment.' }, settlement: { success: true, transaction, network: liveMarket.network, payer: a.from } };
+        let toolReport;
+        if (service === 'compute') toolReport = { language: JSON.parse(init.body).language, stdout: '4\n', stderr: '', result: null, error: null, ...(this.toolReportOverride || {}) };
+        if (service === 'research') toolReport = { query: toolUrl.searchParams.get('q'), results: [{title:'Robinhood Chain docs', url:'https://docs.robinhood.com/',description:'Fixture search result.'}], untrustedContent:true, ...(this.toolReportOverride || {}) };
+        capture = { report: toolReport || { currency: 'usd', count: 2, coins: [{ name: 'Bitcoin', symbol: 'btc', price: 65000, change24hPct: 1.5, marketCap: 1e12 }, { name: 'Ethereum', symbol: 'eth', price: 3500, change24hPct: -0.5, marketCap: 4e11 }], credit: 'Local fixture data, no network payment.' }, settlement: { success: true, transaction, network: liveMarket.network, payer: a.from } };
         this.paid.set(key, capture);
         if (this.loseProviderResponse) { this.loseProviderResponse = false; throw Error('Mock lost settled response'); }
       }

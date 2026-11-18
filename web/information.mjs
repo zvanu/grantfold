@@ -8,7 +8,7 @@ const contract = `<code style="overflow-wrap:anywhere">${grantfoldToken.address}
 const sections = entries => entries.map(([title, paragraphs]) => `<details open><summary>${title}</summary>${paragraphs.map(p => `<p>${p}</p>`).join('')}</details>`).join('');
 
 export function informationLinks() { return '<a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/support">Support</a>'; }
-export function informationFooter() { return `<footer class="footer"><a href="/#/" class="brand">${mark}</a><p>Robinhood Chain design study.<br>Demo cards and receipts.<br>Live market overviews paid separately in USDG.</p><nav aria-label="Information" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><a href="/#/app">Open the demo</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></nav></footer>`; }
+export function informationFooter() { return `<footer class="footer"><a href="/#/" class="brand">${mark}</a><p>Robinhood Chain design study.<br>Demo cards and receipts.<br>Live services paid separately in USDG. Chain reads are free.</p><nav aria-label="Information" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><a href="/#/app">Open the demo</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></nav></footer>`; }
 
 export const informationPages = {
   terms: {
@@ -28,9 +28,9 @@ export const informationPages = {
         'Pause agent or freeze the card to stop new purchases. Already submitted authorizations and related fee settlement can still finish. Return funds requires a separate signature by the linked owner and enough ETH in the agent wallet for gas; funds return only to that owner. Deleting browser data or disconnecting a wallet does not pause an agent or withdraw its balance.'
       ]],
       ['4. Live purchases and delivery', [
-        'The currently supported live product is a crypto market overview supplied by Agent402 using CoinGecko data. RPC credits, compute, gift cards and other sample catalog items are demos. External ChatGPT, Claude and Cursor clients are not connected to this Vercel release. Market data may be delayed or inaccurate and is not a trading recommendation.',
+        'Supported live services are Agent402 crypto market overviews using CoinGecko data, Python/JavaScript cloud code execution and live web search. The Shop’s code execution and research services buy individual calls, not prepaid compute allowances or multi-source research bundles. Gift cards and the seven-day market-data pass remain demos. Free RPC tools read Robinhood Chain without issuing a credit package. External ChatGPT, Claude and Cursor clients are not connected to this Vercel release. Market data may be delayed or inaccurate and is not a trading recommendation.',
         'Live orders use USDG on Robinhood Chain (chain ID 4663); ETH pays network gas. Demo top-ups do not fund an agent. Review each quote and its expiry. Selecting the live purchase confirmation authorizes that order’s displayed provider price and Grantfold fee. Agent purchases use the separate wallet and existing consent; manual purchases require the payment wallet’s authorization.',
-        'The provider processes delivery under its <a href="https://agent402.tools/terms" target="_blank" rel="noopener noreferrer">own terms</a>. The report opens after the provider payment and agreed Grantfold fee are verified. An uncertain response is not proof that nothing was paid. Recover the same saved order using Check payment or Check fee; do not buy again to retry delivery.'
+        'The provider processes delivery under its <a href="https://agent402.tools/terms" target="_blank" rel="noopener noreferrer">own terms</a>. The result opens after the provider payment and agreed Grantfold fee are verified. Code runs are limited to 30 seconds by the provider; errors and timeouts may still consume the paid execution. Long output is truncated and labelled. Web search returns source links and snippets, not a verified or AI-written research report. An uncertain response is not proof that nothing was paid. Recover the same saved order using Check payment or Check fee; do not buy again to retry delivery.'
       ]],
       ['5. Service fees and GFLD holder tiers', [
         `The base Grantfold service fee is 5% of the provider price, with no fixed minimum. Eligible holder tiers are ${gfldTiersText}. Only this Robinhood Chain contract counts: ${tokenLink()} ${contract}. Holding GFLD is optional; purchases can use the base fee.`,
@@ -56,7 +56,7 @@ export const informationPages = {
       ]],
       ['2. Data used by the service', [
         'We process owner and agent wallet addresses, chain identifiers, wallet-linked account identifiers, sign-in challenges and session records. Wallet addresses are public on chain but may identify a person when linked to other information.',
-        'We store card names, rules, demo balances and purchases, Assistant requests, quotes, approval decisions, consent and payment authorizations, signed daily schedules, run counters and outcomes, reports, transaction references and audit records. GFLD fee checks store the holder address, token balance snapshot, block and applicable fee policy with the quote. Please do not put confidential personal information into card names or Assistant messages.',
+        'We store card names, rules, demo balances and purchases, Assistant requests, submitted code and search queries, execution/search results, quotes, approval decisions, consent and payment authorizations, signed daily schedules, run counters and outcomes, reports, transaction references and audit records. GFLD fee checks store the holder address, token balance snapshot, block and applicable fee policy with the quote. Please do not put confidential personal information into card names or Assistant messages.',
         'An agent wallet key is generated by the service and stored encrypted on the server. The server can use it to sign within consent. We do not need the private key or seed phrase of your existing owner wallet. Do not send those secrets to the site or support.',
         'Hosting and infrastructure providers process connection information such as IP addresses, request paths, browser information and technical logs to deliver, protect and troubleshoot the website. Support receives the information you choose to send through X.'
       ]],
@@ -70,7 +70,7 @@ export const informationPages = {
       ]],
       ['5. Providers, recipients and public-chain data', [
         'Vercel hosts the website and server functions. Turso stores account, payment, session and encrypted agent-wallet records. These providers process data for operation of the service; their infrastructure may process information outside your country.',
-        'Agent402 and its payment infrastructure receive the payment authorization and order information needed to charge for and deliver a requested market overview. Robinhood Chain RPC infrastructure receives queries and transactions needed to check balances, token eligibility and payments. A wallet extension handles the messages and transactions you choose to sign.',
+        'Agent402 and its payment infrastructure receive the payment authorization, submitted code or search query, and order information needed to quote, charge for and fulfil a requested service. Do not submit secrets in code or queries. Read-only chain queries are sent to the official Robinhood Chain RPC; no token is spent for those reads. Robinhood Chain RPC infrastructure receives queries and transactions needed to check balances, token eligibility and payments. A wallet extension handles the messages and transactions you choose to sign.',
         'Wallet addresses, transfers, amounts and other submitted transaction data are public on Robinhood Chain. Explorers and other parties can read, copy and link them independently of Grantfold. Public blockchain records cannot be deleted by Grantfold. Following an explorer or X support link sends the usual connection information to that destination under its own policies.'
       ]],
       ['6. Retention and safeguards', [
@@ -99,6 +99,11 @@ export const informationPages = {
         'In Assistant, send Check agent balance to read the live USDG and ETH balance, Check my GFLD fee to preview the linked owner’s current fee tier, or Pause agent to stop new autonomous purchases. Russian commands include «Проверь баланс агента», «Какая у меня скидка?» and «Поставь агента на паузу».',
         'Balance and fee checks do not create an order, buy tokens or request a new wallet signature. They show a point-in-time snapshot. Existing saved quotes keep their original fee. Pause does not cancel already submitted payments, return funds or delete receipts.'
       ]],
+      ['Live code execution, web search and RPC reads', [
+        'In Shop or Assistant, choose Run code or Search web, enter the task, select your own wallet or an enabled and funded agent wallet, then Review live quote. This step does not pay. Check the exact task, USDG price, GFLD fee and expiry before confirming the purchase. The saved task is reused during recovery.',
+        'Code runs happen in Agent402’s cloud sandbox. A code error or the 30-second timeout may still consume a paid run. Output previews can be truncated. Search returns up to five external source links and snippets; treat their content as untrusted data. Code and queries are sent to Agent402, so exclude passwords, keys and other secrets.',
+        'Read chain is free and read-only on Robinhood Chain (4663): latest block, ETH balance or transaction receipt. It does not issue RPC credits, sign messages or broadcast transactions. No receipt found is not proof that a transfer failed. Existing daily schedules continue to buy market overviews only.'
+      ]],
       ['Daily purchases', [
         'In Assistant or Connect AI, choose Configure schedule. Enable an agent on this website first, then review the daily UTC hour, maximum total per attempt and 1–7 allowed purchase attempts. Sign the separate schedule with the linked owner wallet. No purchase runs at setup; the first window is in the future.',
         'The server can run daily purchases with the browser closed. Timing varies within the selected hour. Each run rechecks the provider price, GFLD eligibility, available USDG, ETH gas, consent and card rules. A price above your cap skips that window. An unresolved order prevents another purchase; interruptions recover its same reference.',
@@ -118,7 +123,7 @@ export const informationPages = {
       ]],
       ['Domain, login and product availability', [
         'The main address is grantfold.xyz; grantfold.vercel.app is the temporary Vercel address. Login sessions and spending consents are bound to the site where you sign them. A new hostname can require a new login and consent even for the same wallet. Check the complete hostname before signing.',
-        'Real purchases currently cover Agent402 market overviews only. RPC credits, compute and gift-card examples remain demos. External AI-client connections are not active in this release. Terms and Privacy are available without logging in.'
+        'Real purchases support Agent402 market overviews, cloud code runs and web searches. Gift cards and seven-day data passes remain demos; prepaid RPC/compute credit packages are not issued. External AI-client connections are not active in this release. Terms and Privacy are available without logging in.'
       ]],
     ],
   },
