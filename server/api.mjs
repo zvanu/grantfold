@@ -1,3 +1,4 @@
+import { prepareDeposit, startDeposit, checkDeposit, cancelDeposit } from './deposits.mjs';
 import { readChainTool } from './rpc-tools.mjs';
 import { readAgentCardBalance } from './card-balance.mjs';
 import { productRequest } from './products.mjs';
@@ -79,6 +80,19 @@ export async function handleApi(request, env, services = {}) {
     if (!['GET', 'POST'].includes(request.method)) return apiJson({ error: { code: 'method_refused', message: 'Use GET or POST for this endpoint.' } }, 405, { Allow: 'GET, POST' });
     if (request.method === 'POST') validateWriteOrigin(request);
     const store = new AccountStore(env.DB);
+    if (['/api/deposit/prepare', '/api/deposit/start', '/api/deposit/check', '/api/deposit/cancel'].includes(path) && request.method === 'POST') {
+      const key = request.headers.get('idempotency-key');
+      if (!key || !/^[a-zA-Z0-9_-]{16,100}$/.test(key)) throw new AppError(400, 'request_key_required', 'Provide a unique deposit request key.');
+      const body = await requestBody(request), hash = await requestDigest({ path, body }); let result;
+      if (path.endsWith('/prepare')) { liveFields(body, ['cardId', 'asset', 'amount']); result = await prepareDeposit(store, user, key, hash, body); }
+      else if (path.endsWith('/start')) { liveFields(body, ['depositId']); result = await startDeposit(store, user, key, hash, body.depositId); }
+      else if (path.endsWith('/check')) { liveFields(body, ['depositId', 'transaction']); result = await checkDeposit(store, user, key, hash, body, services.marketProvider || new MarketProvider()); }
+      else {
+        if (Object.keys(body).some(k => !['depositId', 'confirmNoTransfer'].includes(k)) || typeof body.depositId !== 'string' || (body.confirmNoTransfer !== undefined && typeof body.confirmNoTransfer !== 'boolean')) throw new AppError(422, 'deposit_request', 'Use the saved deposit and an explicit wallet check confirmation.');
+        result = await cancelDeposit(store, user, key, hash, body);
+      }
+      return apiJson({ ...result, user, ...accountCapabilities });
+    }
     if (path === '/api/cards/balance' && request.method === 'POST') {
       const body = await requestBody(request); liveFields(body, ['cardId']);
       try { return apiJson(await readAgentCardBalance(store, user.id, body.cardId, services.marketProvider || new MarketProvider())); }

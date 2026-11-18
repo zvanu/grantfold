@@ -93,7 +93,9 @@ The primary card and balance summary display the selected agent wallet’s real 
 
 `POST /api/cards/balance` accepts only the authenticated account’s `cardId`. It reads public wallet fields and never creates a wallet, unlocks a key, signs or spends. Missing wallets return `not_setup`; chain failures return an error with no invented balance. The browser discards stale/account-mismatched snapshots, refreshes the selected card, and clears balance views on disconnect/account changes.
 
-**Add funds** shows the real agent address for USDG and ETH on Robinhood Chain. The user sends funds from their wallet; copying the address or refreshing does not transfer money. **Return funds** retains the separate linked-owner signature and existing checks. Demo top-ups remain only inside labelled demo checkout. Public landing balances and phone receipts are labelled illustrations.
+**Add funds** accepts a USDG or ETH amount, saves a deposit review bound to the signed-in sender and exact agent address, and requests the transfer through the connected wallet after an explicit confirmation. It also retains the copy-address path. There is no Grantfold deposit fee; the sender pays gas. USDG supports up to six decimals; ETH supports eighteen, with pilot caps of 1,000 USDG or 0.1 ETH per deposit. Copying or refreshing does not transfer funds. Only the first successful `/api/deposit/start` can dispatch a wallet request; retries and concurrent requests cannot arm a second send. No recovery or polling path calls `eth_sendTransaction`. A lost response reopens the saved transfer for a hash check. Clearing a request without a hash requires an explicit statement that wallet Activity shows no transfer; a tracked pending hash cannot be cleared that way. Confirmation verifies chain 4663, sender, receiver, exact native value or USDG calldata and Transfer log, successful receipt, and its canonical block. Incoming deposits are never credited in the account ledger; the card reads the real wallet balance. Deposit history appears in Activity.
+
+**Return funds** retains the separate linked-owner signature and existing checks. Demo top-ups remain only inside labelled demo checkout. Public landing balances and phone receipts are labelled illustrations. Wallet deposit submission has been exercised with simulated funds; no new real deposit was made during this release.
 
 ## Live services
 
@@ -121,7 +123,7 @@ Pause schedule stops future scheduled purchases. Pause agent also stops its sche
 
 ## Validation
 
-**160 automated tests** cover account isolation, login, exact payment amounts and authorization nonces, limits, concurrency, GFLD tiers, schedules, pause races and payment recovery. Tests use isolated databases and simulated providers.
+**176 automated tests** cover account isolation, login, exact payment amounts and authorization nonces, limits, concurrency, GFLD tiers, schedules, pause races and payment recovery. Tests use isolated databases and simulated providers.
 
 An agent purchase from the production Assistant has been verified on chain. Production scheduling checks covered authenticated empty cron execution and signed activation/pause with an unfunded test wallet. A paid scheduled run has **not** yet been tested. Automated checks are not a claim of an independent security audit.
 

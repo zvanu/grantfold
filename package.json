@@ -9,7 +9,7 @@
     "dev": "node scripts/dev-vercel.mjs",
     "build": "node scripts/build-vercel.mjs",
     "check": "node scripts/check-vercel.mjs",
-    "test": "node --test core.test.mjs server.test.mjs market.test.mjs agent.test.mjs fees.test.mjs auth.test.mjs libsql.test.mjs schedule.test.mjs services.test.mjs card-balance.test.mjs",
+    "test": "node --test core.test.mjs server.test.mjs market.test.mjs agent.test.mjs fees.test.mjs auth.test.mjs libsql.test.mjs schedule.test.mjs services.test.mjs card-balance.test.mjs deposit.test.mjs",
     "db:generate": "node scripts/migrations.mjs",
     "migrate": "node scripts/migrate-vercel.mjs"
   },
