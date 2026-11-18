@@ -1,0 +1,8 @@
+Grantfold visual baseline for Robinhood Chain. Name and logo selected 17 November 2026; the existing design is retained in the current application.
+Palette: porcelain #f7f7f5, silver #dedfe0, ink #111211, grey #737675, white #ffffff, RH leaf #c5ec90.
+Type: Manrope, restrained medium-weight headlines and compact product text.
+Layout: floating white navigation, centered two-line headline, physical black agent card and phone composition, large feature demonstrations. Product: narrow card rail, generous account surface, chat / approvals / receipt.
+Preserve the established white/silver tactile fintech direction. Keep the established light canvas and existing homepage structure. RH appears in network and digital-service context, not as a global recolor.
+Scope: agent cards with separate demo balances, wallet login, funded live USDG market overviews, signed agent permissions, rules, approvals, receipts, daily schedules and GFLD fee tiers. Demo funds remain simulated. No card issuer, redeemable gift codes or external AI-client connection. Preserve the existing layout and all working scenarios.
+
+Brand: Grantfold, geometric G with a folded lower-right corner. Use grantfold-mark.svg on light surfaces, grantfold-mark-white.svg on dark cards and assistant icons. Favicon uses a white mark on a black tile. Preserve the legacy storage key to retain existing demo balances and history.

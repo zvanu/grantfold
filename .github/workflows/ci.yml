@@ -1,0 +1,39 @@
+name: Tests and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Reject tracked local state
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+          const bad = files.filter(path => /(^|\/)(\.local|\.vercel|node_modules|outputs)(\/|$)|(^|\/)\.env(?:\.|$)|\.(?:sqlite3?|db)(?:-|$)|\.(?:pem|key|p12|pfx)$/.test(path) && path !== '.env.example');
+          if (bad.length) throw Error('Local state must not be tracked: ' + bad.join(', '));
+          NODE
+      - run: npm ci
+      - run: npm test
+      - run: npm run check
+        env:
+          GRANTFOLD_SITE_ORIGIN: https://grantfold.xyz

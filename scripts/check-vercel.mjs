@@ -1,0 +1,10 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync, readdirSync } from 'node:fs';
+for (const dir of ['server', 'shared', 'scripts', 'api']) for (const file of readdirSync(dir)) if (/\.(mjs|js)$/.test(file)) execFileSync(process.execPath, ['--check', dir + '/' + file]);
+execFileSync(process.execPath, ['--check', 'web/app.js']);
+execFileSync(process.execPath, ['scripts/build-vercel.mjs'], { stdio: 'inherit' });
+const app = readFileSync('.vercel/output/static/app.js', 'utf8');
+if (/signin-with-chatgpt|Continue with ChatGPT|signout-with-chatgpt/.test(app)) throw Error('ChatGPT sign-in must not remain in the Vercel UI.');
+if (!app.includes('./wallet-auth.js') || !readFileSync('.vercel/output/static/wallet-auth.js', 'utf8').includes('/api/auth/challenge') || !app.includes('Buy with agent wallet')) throw Error('Wallet login or live Assistant is missing.');
+if (!readFileSync('.vercel/output/static/style.css').equals(readFileSync('web/style.css'))) throw Error('Design CSS changed during packaging.');
+console.log('Vercel source syntax, wallet UI and unchanged design verified.');

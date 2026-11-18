@@ -1,0 +1,24 @@
+{
+  "name": "grantfold",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-vercel.mjs",
+    "build": "node scripts/build-vercel.mjs",
+    "check": "node scripts/check-vercel.mjs",
+    "test": "node --test core.test.mjs server.test.mjs market.test.mjs agent.test.mjs fees.test.mjs auth.test.mjs libsql.test.mjs schedule.test.mjs",
+    "db:generate": "node scripts/migrations.mjs",
+    "migrate": "node scripts/migrate-vercel.mjs"
+  },
+  "dependencies": {
+    "viem": "2.58.0",
+    "@libsql/client": "0.18.0"
+  },
+  "devDependencies": {
+    "@x402/core": "2.30.0",
+    "esbuild": "0.28.2"
+  }
+}

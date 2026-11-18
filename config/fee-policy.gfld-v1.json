@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "version": "gfld-holders-v1",
+  "chainId": 4663,
+  "token": "0x0e38e046d4b3d091193cce94974b17beba957d9a",
+  "decimals": 18,
+  "tiers": [
+    {
+      "minBalance": "100000000000000000000000",
+      "feeBps": 400
+    },
+    {
+      "minBalance": "1000000000000000000000000",
+      "feeBps": 300
+    },
+    {
+      "minBalance": "10000000000000000000000000",
+      "feeBps": 200
+    }
+  ]
+}

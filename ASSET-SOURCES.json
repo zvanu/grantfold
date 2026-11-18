@@ -1,0 +1,36 @@
+{
+  "purpose": "Grantfold rebrand, selected by the user on 2026-11-17; existing light tactile demo design and flows preserved",
+  "assets": [
+    {
+      "files": [
+        "grantfold-mark.svg",
+        "grantfold-mark-white.svg"
+      ],
+      "source": "Original geometric SVG concept created in this project, branding/round-01; selected Grantfold direction. No TAB mark geometry is used."
+    },
+    {
+      "files": [
+        "grantfold-logo.svg",
+        "grantfold-logo-white.svg"
+      ],
+      "source": "Selected Grantfold lockup; Manrope lettering converted to paths through CoreText."
+    },
+    {
+      "files": [
+        "grantfold-favicon.svg",
+        "grantfold-favicon.ico",
+        "grantfold-touch-icon.png"
+      ],
+      "source": "Exports of the selected Grantfold mark on a black background."
+    }
+  ],
+  "font": "Manrope, existing font bundle retained unchanged; SIL Open Font License 1.1 in licenses/Manrope-OFL.txt. Upstream: https://github.com/google/fonts/tree/main/ofl/manrope",
+  "historical_reference": {
+    "purpose": "Earlier private visual reference only; these logos have been removed from dist and are no longer served.",
+    "sources": [
+      "https://usetab.fun/mark.svg",
+      "https://usetab.fun/mark-white.svg"
+    ]
+  },
+  "naming_status": "User-selected working name; no domain or trademark availability claim."
+}

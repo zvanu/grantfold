@@ -1,0 +1,36 @@
+# Local credentials, wallet signing material and account state
+.local/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Dependencies, generated files and hosting metadata
+node_modules/
+.vercel/
+.openai/
+dist/
+public/
+coverage/
+work/
+outputs/
+*.log
+*.zip
+*.tar.gz
+.DS_Store
+
+# Historical private design and operator-only acceptance tools
+branding/
+scripts/dev.mjs
+scripts/check.mjs
+scripts/verify-production.mjs
+scripts/verify-schedules.mjs
